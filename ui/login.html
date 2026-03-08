@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login | Web Scraper API</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <div class="bg-shape bg-shape-1"></div>
+    <div class="bg-shape bg-shape-2"></div>
+    <main class="container">
+      <header class="hero">
+        <p class="kicker">Web Scraper API</p>
+        <h1>Welcome Back</h1>
+       
+      </header>
+
+      <section class="card auth-card">
+        <h2>Login</h2>
+        <form id="login-form" class="form form-2 form-login">
+          <input id="login_username" type="text" placeholder="Username" required />
+          <input id="login_password" type="password" placeholder="Password" required />
+          <button type="submit">Login</button>
+        </form>
+        <p id="login-status" class="status"></p>
+        <div class="auth-footer">
+          <span>New user?</span>
+          <button id="show-register-btn" type="button" class="ghost">Create account</button>
+        </div>
+      </section>
+
+      <div id="register-modal" class="modal hidden">
+        <div class="modal-card">
+          <div class="auth-head">
+            <h2>Create Account</h2>
+            <button id="hide-register-btn" type="button" class="ghost">Close</button>
+          </div>
+          <form id="register-form" class="form form-2">
+            <input id="reg_username" type="text" placeholder="Username" required />
+            <input id="reg_email" type="email" placeholder="Email" required />
+            <input id="reg_password" type="password" placeholder="Password" required />
+            <button type="submit">Register</button>
+          </form>
+          <p id="register-status" class="status"></p>
+        </div>
+      </div>
+    </main>
+    <script src="/assets/login.js"></script>
+  </body>
+</html>

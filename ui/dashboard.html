@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard | Web Scraper API</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <div class="bg-shape bg-shape-1"></div>
+    <div class="bg-shape bg-shape-2"></div>
+    <main class="container">
+      <header class="hero hero-row">
+        <div>
+          <p class="kicker">Web Scraper API</p>
+          <h1>Scrape Dashboard</h1>
+          <p id="current-user" class="subtitle">Loading user...</p>
+        </div>
+        <button id="logout-btn" type="button" class="ghost">Logout</button>
+      </header>
+
+      <section class="card">
+        <h2>Run Scrape</h2>
+        <form id="scrape-form" class="form">
+          <input id="url" type="url" placeholder="https://example.com" required />
+          <label class="check">
+            <input id="verify_ssl" type="checkbox" checked />
+            Verify SSL
+          </label>
+          <button type="submit">Scrape</button>
+        </form>
+        <p id="status" class="status"></p>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>History</h2>
+          <div class="history-actions">
+            <input id="search-input" type="text" placeholder="Search URL/title" />
+            <button id="search-btn" type="button" class="ghost">Search</button>
+            <button id="export-btn" type="button">Export CSV</button>
+            <button id="refresh-history" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>URL</th>
+                <th>Status</th>
+                <th>Title</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="history-body">
+              <tr>
+                <td colspan="5">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script src="/assets/dashboard.js"></script>
+  </body>
+</html>
