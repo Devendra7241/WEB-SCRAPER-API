@@ -107,7 +107,7 @@ function LoginView({ setToken, setUsername, setPath }) {
     h("header", { className: "hero" }, [
       h("p", { className: "kicker", key: "k" }, "WEB SCRAPER API"),
       h("h1", { key: "h" }, "Welcome Back"),
-      h("p", { className: "subtitle", key: "s" }, "Agar account hai to direct login karo. Naya account ho to create karo."),
+      h("p", { className: "subtitle", key: "s" }, ),
     ]),
     h("section", { className: "card auth-card" }, [
       h("h2", { key: "h2" }, "Login"),
