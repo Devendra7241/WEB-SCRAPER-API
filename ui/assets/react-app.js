@@ -44,6 +44,13 @@ function navigate(path, setPath) {
   setPath(path);
 }
 
+function formatDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
 function LoginView({ setToken, setUsername, setPath }) {
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -191,13 +198,35 @@ function DashboardView({ token, username, setToken, setUsername, setPath }) {
   const [verifySsl, setVerifySsl] = useState(true);
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
   const [historyItems, setHistoryItems] = useState([]);
+  const [detailItem, setDetailItem] = useState(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const queryString = useMemo(() => {
-    const params = new URLSearchParams({ limit: "15" });
+    const params = new URLSearchParams({ limit: "100" });
     if (search.trim()) params.set("q", search.trim());
     return params.toString();
   }, [search]);
+
+  const filteredSortedItems = useMemo(() => {
+    const filtered = historyItems.filter((item) => {
+      if (statusFilter === "success") return item.status_code >= 200 && item.status_code < 400;
+      if (statusFilter === "error") return item.status_code >= 400;
+      return true;
+    });
+
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      if (sortBy === "oldest") return a.id - b.id;
+      if (sortBy === "status_asc") return a.status_code - b.status_code;
+      if (sortBy === "status_desc") return b.status_code - a.status_code;
+      return b.id - a.id;
+    });
+    return sorted;
+  }, [historyItems, statusFilter, sortBy]);
 
   function logout() {
     clearAuth();
@@ -287,6 +316,27 @@ function DashboardView({ token, username, setToken, setUsername, setPath }) {
     setStatus("CSV exported");
   }
 
+  async function onViewDetails(historyId) {
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setDetailItem(null);
+    const { res, data } = await apiRequest(`/scrape/history/${historyId}`, { token });
+    if (res.status === 401) return logout();
+    if (!res.ok) {
+      setDetailLoading(false);
+      setStatus(data.detail || "Details load failed");
+      return;
+    }
+    setDetailItem(data.item || null);
+    setDetailLoading(false);
+  }
+
+  function statusClassName(code) {
+    if (code >= 200 && code < 400) return "status-pill status-success";
+    if (code >= 400 && code < 500) return "status-pill status-warn";
+    return "status-pill status-error";
+  }
+
   return h(
     React.Fragment,
     null,
@@ -337,6 +387,33 @@ function DashboardView({ token, username, setToken, setUsername, setPath }) {
             value: search,
             onChange: (e) => setSearch(e.target.value),
           }),
+          h(
+            "select",
+            {
+              key: "sf",
+              value: statusFilter,
+              onChange: (e) => setStatusFilter(e.target.value),
+            },
+            [
+              h("option", { key: "a", value: "all" }, "All Status"),
+              h("option", { key: "s", value: "success" }, "Success"),
+              h("option", { key: "e", value: "error" }, "Error"),
+            ],
+          ),
+          h(
+            "select",
+            {
+              key: "sb",
+              value: sortBy,
+              onChange: (e) => setSortBy(e.target.value),
+            },
+            [
+              h("option", { key: "n", value: "newest" }, "Newest First"),
+              h("option", { key: "o", value: "oldest" }, "Oldest First"),
+              h("option", { key: "sa", value: "status_asc" }, "Status Asc"),
+              h("option", { key: "sd", value: "status_desc" }, "Status Desc"),
+            ],
+          ),
           h("button", { key: "ex", type: "button", onClick: onExport }, "Export CSV"),
           h("button", { key: "rf", type: "button", className: "ghost", onClick: loadHistory }, "Refresh"),
         ]),
@@ -347,37 +424,78 @@ function DashboardView({ token, username, setToken, setUsername, setPath }) {
             h("tr", { key: "trh" }, [
               h("th", { key: "i" }, "ID"),
               h("th", { key: "u" }, "URL"),
+              h("th", { key: "cr" }, "Created At"),
               h("th", { key: "s" }, "Status"),
               h("th", { key: "t" }, "Title"),
+              h("th", { key: "h1" }, "H1"),
+              h("th", { key: "ln" }, "Links"),
               h("th", { key: "a" }, "Action"),
             ]),
           ]),
           h(
             "tbody",
             { key: "bd" },
-            historyItems.length
-              ? historyItems.map((item) =>
+            filteredSortedItems.length
+              ? filteredSortedItems.map((item) =>
                   h("tr", { key: item.id }, [
                     h("td", { key: "id" }, String(item.id)),
                     h("td", { key: "url", title: item.url }, item.url),
-                    h("td", { key: "st" }, String(item.status_code)),
+                    h("td", { key: "cr", title: item.created_at || "" }, formatDateTime(item.created_at)),
+                    h("td", { key: "st" }, h("span", { className: statusClassName(item.status_code) }, String(item.status_code))),
                     h("td", { key: "ti", title: item.title || "" }, item.title || "-"),
+                    h("td", { key: "h1" }, String(item.h1_count ?? 0)),
+                    h("td", { key: "ln" }, String(item.links_count ?? 0)),
                     h(
                       "td",
                       { key: "ac" },
-                      h(
-                        "button",
-                        { type: "button", className: "ghost delete-btn", onClick: () => onDelete(item.id) },
-                        "Delete",
-                      ),
+                      [
+                        h(
+                          "button",
+                          { key: "vw", type: "button", className: "ghost delete-btn", onClick: () => onViewDetails(item.id) },
+                          "View",
+                        ),
+                        h(
+                          "button",
+                          { key: "dl", type: "button", className: "ghost delete-btn", onClick: () => onDelete(item.id) },
+                          "Delete",
+                        ),
+                      ],
                     ),
                   ]),
                 )
-              : [h("tr", { key: "empty" }, h("td", { colSpan: 5 }, "No history yet"))],
+              : [h("tr", { key: "empty" }, h("td", { colSpan: 8 }, "No history found"))],
           ),
         ]),
       ]),
     ]),
+    detailOpen
+      ? h("div", { className: "modal", onClick: () => setDetailOpen(false) }, [
+          h("div", { className: "modal-card", onClick: (e) => e.stopPropagation(), key: "dc" }, [
+            h("div", { className: "auth-head", key: "dh" }, [
+              h("h2", { key: "h" }, "Scrape Details"),
+              h(
+                "button",
+                { type: "button", className: "ghost", key: "cl", onClick: () => setDetailOpen(false) },
+                "Close",
+              ),
+            ]),
+            detailLoading
+              ? h("p", { className: "status", key: "ld" }, "Loading details...")
+              : detailItem
+                ? h("div", { className: "detail-grid", key: "dg" }, [
+                    h("p", { key: "i" }, `ID: ${detailItem.id}`),
+                    h("p", { key: "u", title: detailItem.url || "" }, `URL: ${detailItem.url || "-"}`),
+                    h("p", { key: "c" }, `Created: ${formatDateTime(detailItem.created_at)}`),
+                    h("p", { key: "s" }, `Status: ${detailItem.status_code}`),
+                    h("p", { key: "t", title: detailItem.title || "" }, `Title: ${detailItem.title || "-"}`),
+                    h("p", { key: "m", title: detailItem.meta_description || "" }, `Meta: ${detailItem.meta_description || "-"}`),
+                    h("p", { key: "h1" }, `H1 Count: ${detailItem.h1_count ?? 0}`),
+                    h("p", { key: "ln" }, `Links Count: ${detailItem.links_count ?? 0}`),
+                  ])
+                : h("p", { className: "status", key: "nf" }, "Details not found"),
+          ]),
+        ])
+      : null,
   );
 }
 

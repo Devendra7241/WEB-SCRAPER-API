@@ -156,6 +156,15 @@ input[type="password"] {
   font-size: 15px;
 }
 
+select {
+  border: 1px solid var(--line);
+  padding: 11px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  background: #fff;
+  color: var(--ink);
+}
+
 button {
   border: 0;
   background: linear-gradient(135deg, var(--accent), #0d9488);
@@ -237,6 +246,47 @@ button.ghost {
 .delete-btn {
   padding: 6px 10px;
   font-size: 12px;
+  margin-right: 6px;
+}
+
+.status-pill {
+  display: inline-block;
+  min-width: 52px;
+  text-align: center;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.status-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-warn {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.status-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.detail-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.detail-grid p {
+  margin: 0;
+  padding: 8px 10px;
+  background: #f8faf9;
+  border: 1px solid var(--line);
+  border-radius: 10px;
 }
 
 .table-wrap {

@@ -11,6 +11,7 @@ from .config import APP_DESCRIPTION, APP_TITLE, APP_VERSION, UI_DIR
 from .db import (
     create_user,
     delete_scrape_history_for_user,
+    get_scrape_history_detail_for_user,
     get_scrape_history_for_user,
     get_user_with_password,
     init_db,
@@ -115,6 +116,17 @@ def scrape_history(
     query = q.strip() or None
     records = get_scrape_history_for_user(current_user["id"], limit, query)
     return {"count": len(records), "items": records, "user": current_user["username"]}
+
+
+@app.get("/scrape/history/{history_id}")
+def scrape_history_detail(
+    history_id: int,
+    current_user: sqlite3.Row = Depends(get_current_user),
+) -> dict:
+    item = get_scrape_history_detail_for_user(current_user["id"], history_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="History item not found")
+    return {"item": item, "user": current_user["username"]}
 
 
 @app.delete("/scrape/history/{history_id}")

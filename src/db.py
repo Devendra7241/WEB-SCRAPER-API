@@ -141,6 +141,29 @@ def get_scrape_history_for_user(
     return [dict(row) for row in rows]
 
 
+def get_scrape_history_detail_for_user(user_id: int, history_id: int) -> dict[str, Any] | None:
+    with get_db_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id, created_at, url, status_code, title, meta_description, h1_count, links_count, payload_json
+            FROM scrape_history
+            WHERE id = ? AND user_id = ?
+            """,
+            (history_id, user_id),
+        ).fetchone()
+
+    if not row:
+        return None
+
+    data = dict(row)
+    payload_raw = data.pop("payload_json", "")
+    try:
+        data["payload"] = json.loads(payload_raw) if payload_raw else {}
+    except json.JSONDecodeError:
+        data["payload"] = {}
+    return data
+
+
 def delete_scrape_history_for_user(user_id: int, history_id: int) -> bool:
     with get_db_connection() as conn:
         cursor = conn.execute(
