@@ -198,35 +198,22 @@ function DashboardView({ token, username, setToken, setUsername, setPath }) {
   const [verifySsl, setVerifySsl] = useState(true);
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
+  const pageSize = 10;
+  const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("newest");
   const [historyItems, setHistoryItems] = useState([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [detailItem, setDetailItem] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
 
   const queryString = useMemo(() => {
-    const params = new URLSearchParams({ limit: "100" });
+    const params = new URLSearchParams({ limit: String(pageSize), page: String(currentPage) });
     if (search.trim()) params.set("q", search.trim());
+    params.set("status", statusFilter);
     return params.toString();
-  }, [search]);
-
-  const filteredSortedItems = useMemo(() => {
-    const filtered = historyItems.filter((item) => {
-      if (statusFilter === "success") return item.status_code >= 200 && item.status_code < 400;
-      if (statusFilter === "error") return item.status_code >= 400;
-      return true;
-    });
-
-    const sorted = [...filtered];
-    sorted.sort((a, b) => {
-      if (sortBy === "oldest") return a.id - b.id;
-      if (sortBy === "status_asc") return a.status_code - b.status_code;
-      if (sortBy === "status_desc") return b.status_code - a.status_code;
-      return b.id - a.id;
-    });
-    return sorted;
-  }, [historyItems, statusFilter, sortBy]);
+  }, [search, pageSize, currentPage, statusFilter]);
 
   function logout() {
     clearAuth();
@@ -240,6 +227,13 @@ function DashboardView({ token, username, setToken, setUsername, setPath }) {
     if (res.status === 401) return logout();
     if (!res.ok) {
       setStatus(data.detail || "History load failed");
+      return;
+    }
+    const apiTotalPages = Math.max(1, Number(data.total_pages || 1));
+    setTotalItems(Number(data.total || 0));
+    setTotalPages(apiTotalPages);
+    if (currentPage > apiTotalPages) {
+      setCurrentPage(apiTotalPages);
       return;
     }
     setHistoryItems(data.items || []);
@@ -261,17 +255,26 @@ function DashboardView({ token, username, setToken, setUsername, setPath }) {
     loadHistory();
   }, [queryString]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter]);
+
   async function onScrapeSubmit(event) {
     event.preventDefault();
     setStatus("Scraping...");
-    const params = new URLSearchParams({ url: url.trim(), verify_ssl: String(verifySsl) });
+    const params = new URLSearchParams({
+      url: url.trim(),
+      verify_ssl: String(verifySsl),
+    });
     const { res, data } = await apiRequest(`/scrape?${params.toString()}`, { token });
     if (res.status === 401) return logout();
     if (!res.ok) {
       setStatus(data.detail || "Scrape failed");
       return;
     }
-    setStatus("Scrape complete");
+    setStatus(
+      `Scrape complete: ${data.crawled_pages || 1} page(s), links ${data.links_count || 0}, emails ${data.emails_count || 0}, phones ${data.phones_count || 0}`,
+    );
     setUrl("");
     await loadHistory();
   }
@@ -331,10 +334,12 @@ function DashboardView({ token, username, setToken, setUsername, setPath }) {
     setDetailLoading(false);
   }
 
-  function statusClassName(code) {
-    if (code >= 200 && code < 400) return "status-pill status-success";
-    if (code >= 400 && code < 500) return "status-pill status-warn";
-    return "status-pill status-error";
+  function onPrevPage() {
+    setCurrentPage((prev) => (prev > 1 ? prev - 1 : 1));
+  }
+
+  function onNextPage() {
+    setCurrentPage((prev) => (prev < totalPages ? prev + 1 : totalPages));
   }
 
   return h(
@@ -400,51 +405,76 @@ function DashboardView({ token, username, setToken, setUsername, setPath }) {
               h("option", { key: "e", value: "error" }, "Error"),
             ],
           ),
-          h(
-            "select",
-            {
-              key: "sb",
-              value: sortBy,
-              onChange: (e) => setSortBy(e.target.value),
-            },
-            [
-              h("option", { key: "n", value: "newest" }, "Newest First"),
-              h("option", { key: "o", value: "oldest" }, "Oldest First"),
-              h("option", { key: "sa", value: "status_asc" }, "Status Asc"),
-              h("option", { key: "sd", value: "status_desc" }, "Status Desc"),
-            ],
-          ),
           h("button", { key: "ex", type: "button", onClick: onExport }, "Export CSV"),
           h("button", { key: "rf", type: "button", className: "ghost", onClick: loadHistory }, "Refresh"),
         ]),
       ]),
       h("div", { className: "table-wrap", key: "tw" }, [
+        h("div", { className: "pagination", key: "pg-top" }, [
+          h(
+            "p",
+            { key: "info", className: "small" },
+            `Page ${currentPage} of ${totalPages} (${totalItems} items)`,
+          ),
+          h("div", { key: "btns", className: "pagination-actions" }, [
+            h(
+              "button",
+              {
+                key: "prev",
+                type: "button",
+                className: "ghost",
+                disabled: currentPage <= 1,
+                onClick: onPrevPage,
+              },
+              "Prev",
+            ),
+            h(
+              "button",
+              {
+                key: "next",
+                type: "button",
+                className: "ghost",
+                disabled: currentPage >= totalPages,
+                onClick: onNextPage,
+              },
+              "Next",
+            ),
+          ]),
+        ]),
         h("table", { key: "tb" }, [
           h("thead", { key: "th" }, [
             h("tr", { key: "trh" }, [
-              h("th", { key: "i" }, "ID"),
               h("th", { key: "u" }, "URL"),
               h("th", { key: "cr" }, "Created At"),
-              h("th", { key: "s" }, "Status"),
               h("th", { key: "t" }, "Title"),
               h("th", { key: "h1" }, "H1"),
               h("th", { key: "ln" }, "Links"),
+              h("th", { key: "em" }, "Email"),
+              h("th", { key: "ph" }, "Mobile"),
               h("th", { key: "a" }, "Action"),
             ]),
           ]),
           h(
             "tbody",
             { key: "bd" },
-            filteredSortedItems.length
-              ? filteredSortedItems.map((item) =>
+            historyItems.length
+              ? historyItems.map((item) =>
                   h("tr", { key: item.id }, [
-                    h("td", { key: "id" }, String(item.id)),
                     h("td", { key: "url", title: item.url }, item.url),
                     h("td", { key: "cr", title: item.created_at || "" }, formatDateTime(item.created_at)),
-                    h("td", { key: "st" }, h("span", { className: statusClassName(item.status_code) }, String(item.status_code))),
                     h("td", { key: "ti", title: item.title || "" }, item.title || "-"),
                     h("td", { key: "h1" }, String(item.h1_count ?? 0)),
                     h("td", { key: "ln" }, String(item.links_count ?? 0)),
+                    h(
+                      "td",
+                      { key: "em", title: (item.sample_emails || []).join(", ") || "" },
+                      item.primary_email || "-",
+                    ),
+                    h(
+                      "td",
+                      { key: "ph", title: (item.sample_phones || []).join(", ") || "" },
+                      item.primary_phone || "-",
+                    ),
                     h(
                       "td",
                       { key: "ac" },
@@ -491,6 +521,47 @@ function DashboardView({ token, username, setToken, setUsername, setPath }) {
                     h("p", { key: "m", title: detailItem.meta_description || "" }, `Meta: ${detailItem.meta_description || "-"}`),
                     h("p", { key: "h1" }, `H1 Count: ${detailItem.h1_count ?? 0}`),
                     h("p", { key: "ln" }, `Links Count: ${detailItem.links_count ?? 0}`),
+                    h("p", { key: "em" }, `Emails Found: ${detailItem.payload?.emails_count ?? 0}`),
+                    h("p", { key: "ph" }, `Phones Found: ${detailItem.payload?.phones_count ?? 0}`),
+                    h("p", { key: "cp" }, `Crawled Pages: ${detailItem.payload?.crawled_pages ?? 1}`),
+                    h("p", { key: "fp" }, `Failed Pages: ${detailItem.payload?.failed_pages ?? 0}`),
+                    detailItem.payload?.sample_emails?.length
+                      ? h(
+                          "div",
+                          { key: "el", className: "page-list" },
+                          [
+                            h("p", { key: "elh", className: "small" }, "Sample Emails"),
+                            ...detailItem.payload.sample_emails.slice(0, 12).map((email, index) =>
+                              h("p", { key: `em-${index}`, title: email }, `${index + 1}. ${email}`),
+                            ),
+                          ],
+                        )
+                      : null,
+                    detailItem.payload?.sample_phones?.length
+                      ? h(
+                          "div",
+                          { key: "pln", className: "page-list" },
+                          [
+                            h("p", { key: "plnh", className: "small" }, "Sample Phones"),
+                            ...detailItem.payload.sample_phones.slice(0, 12).map((phone, index) =>
+                              h("p", { key: `ph-${index}`, title: phone }, `${index + 1}. ${phone}`),
+                            ),
+                          ],
+                        )
+                      : null,
+                    detailItem.payload?.pages?.length
+                      ? h(
+                          "div",
+                          { key: "pl", className: "page-list" },
+                          detailItem.payload.pages.slice(0, 12).map((page, index) =>
+                            h(
+                              "p",
+                              { key: `${page.url}-${index}`, title: page.url || "" },
+                              `${index + 1}. [${page.status_code ?? "ERR"}] ${page.url || "-"}`,
+                            ),
+                          ),
+                        )
+                      : null,
                   ])
                 : h("p", { className: "status", key: "nf" }, "Details not found"),
           ]),

@@ -156,6 +156,14 @@ input[type="password"] {
   font-size: 15px;
 }
 
+input[type="number"] {
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  width: 96px;
+}
+
 select {
   border: 1px solid var(--line);
   padding: 11px 12px;
@@ -186,6 +194,13 @@ button:active {
   transform: translateY(0);
 }
 
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 button.ghost {
   background: #ffffff;
   color: var(--accent);
@@ -206,6 +221,7 @@ button.ghost {
   color: var(--accent-2);
   font-weight: 600;
 }
+
 
 .small {
   margin-top: 0;
@@ -289,9 +305,29 @@ button.ghost {
   border-radius: 10px;
 }
 
+.page-list {
+  display: grid;
+  gap: 6px;
+}
+
 .table-wrap {
   margin-top: 10px;
   overflow-x: auto;
+}
+
+.pagination {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 table {

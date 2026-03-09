@@ -48,6 +48,10 @@ def init_db() -> None:
         ]
         if "user_id" not in columns:
             conn.execute("ALTER TABLE scrape_history ADD COLUMN user_id INTEGER")
+        if "emails_count" not in columns:
+            conn.execute("ALTER TABLE scrape_history ADD COLUMN emails_count INTEGER NOT NULL DEFAULT 0")
+        if "phones_count" not in columns:
+            conn.execute("ALTER TABLE scrape_history ADD COLUMN phones_count INTEGER NOT NULL DEFAULT 0")
         conn.commit()
 
 
@@ -98,8 +102,8 @@ def save_scrape_result(result: dict[str, Any]) -> int:
             """
             INSERT INTO scrape_history (
                 user_id, created_at, url, status_code, title, meta_description,
-                h1_count, links_count, payload_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                h1_count, links_count, emails_count, phones_count, payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 result["user_id"],
@@ -110,6 +114,8 @@ def save_scrape_result(result: dict[str, Any]) -> int:
                 result["meta_description"],
                 result["h1_count"],
                 result["links_count"],
+                int(result.get("emails_count", 0) or 0),
+                int(result.get("phones_count", 0) or 0),
                 payload_json,
             ),
         )
@@ -120,11 +126,13 @@ def save_scrape_result(result: dict[str, Any]) -> int:
 def get_scrape_history_for_user(
     user_id: int,
     limit: int,
+    offset: int = 0,
     query: str | None = None,
+    status_group: str = "all",
 ) -> list[dict[str, Any]]:
     params: list[Any] = [user_id]
     sql = """
-        SELECT id, created_at, url, status_code, title, h1_count, links_count
+        SELECT id, created_at, url, status_code, title, h1_count, links_count, emails_count, phones_count, payload_json
         FROM scrape_history
         WHERE user_id = ?
     """
@@ -133,12 +141,60 @@ def get_scrape_history_for_user(
         pattern = f"%{query}%"
         params.extend([pattern, pattern])
 
-    sql += " ORDER BY id DESC LIMIT ?"
-    params.append(limit)
+    if status_group == "success":
+        sql += " AND status_code >= 200 AND status_code < 400"
+    elif status_group == "error":
+        sql += " AND status_code >= 400"
+
+    sql += " ORDER BY id DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
 
     with get_db_connection() as conn:
         rows = conn.execute(sql, tuple(params)).fetchall()
-    return [dict(row) for row in rows]
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        payload_raw = item.pop("payload_json", "")
+        sample_emails: list[str] = []
+        sample_phones: list[str] = []
+        if payload_raw:
+            try:
+                payload = json.loads(payload_raw)
+                sample_emails = payload.get("sample_emails") or []
+                sample_phones = payload.get("sample_phones") or []
+            except json.JSONDecodeError:
+                sample_emails = []
+                sample_phones = []
+
+        item["sample_emails"] = sample_emails
+        item["sample_phones"] = sample_phones
+        item["primary_email"] = sample_emails[0] if sample_emails else "-"
+        item["primary_phone"] = sample_phones[0] if sample_phones else "-"
+        items.append(item)
+    return items
+
+
+def get_scrape_history_count_for_user(
+    user_id: int,
+    query: str | None = None,
+    status_group: str = "all",
+) -> int:
+    params: list[Any] = [user_id]
+    sql = "SELECT COUNT(*) AS total FROM scrape_history WHERE user_id = ?"
+
+    if query:
+        sql += " AND (url LIKE ? OR title LIKE ?)"
+        pattern = f"%{query}%"
+        params.extend([pattern, pattern])
+
+    if status_group == "success":
+        sql += " AND status_code >= 200 AND status_code < 400"
+    elif status_group == "error":
+        sql += " AND status_code >= 400"
+
+    with get_db_connection() as conn:
+        row = conn.execute(sql, tuple(params)).fetchone()
+    return int(row["total"] if row else 0)
 
 
 def get_scrape_history_detail_for_user(user_id: int, history_id: int) -> dict[str, Any] | None:

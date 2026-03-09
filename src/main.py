@@ -11,6 +11,7 @@ from .config import APP_DESCRIPTION, APP_TITLE, APP_VERSION, UI_DIR
 from .db import (
     create_user,
     delete_scrape_history_for_user,
+    get_scrape_history_count_for_user,
     get_scrape_history_detail_for_user,
     get_scrape_history_for_user,
     get_user_with_password,
@@ -99,9 +100,25 @@ def scrape(
         True,
         description="Keep true for production. Set false only for local testing if SSL errors occur.",
     ),
+    max_pages: int = Query(1, ge=1, le=200, description="Max pages to crawl including the seed URL."),
+    depth: int = Query(0, ge=0, le=5, description="Crawl depth from seed URL. 0 means only seed page."),
+    same_domain_only: bool = Query(True, description="If true, crawl links only from the same domain."),
+    include: str = Query("", description="Optional comma-separated patterns to include in URL."),
+    exclude: str = Query("", description="Optional comma-separated patterns to exclude from URL."),
     current_user: sqlite3.Row = Depends(get_current_user),
 ) -> dict:
-    result = scrape_url(url=url, verify_ssl=verify_ssl)
+    include_patterns = [item.strip() for item in include.split(",") if item.strip()]
+    exclude_patterns = [item.strip() for item in exclude.split(",") if item.strip()]
+
+    result = scrape_url(
+        url=url,
+        verify_ssl=verify_ssl,
+        max_pages=max_pages,
+        depth=depth,
+        same_domain_only=same_domain_only,
+        include_patterns=include_patterns,
+        exclude_patterns=exclude_patterns,
+    )
     result["user_id"] = current_user["id"]
     history_id = save_scrape_result(result)
     return {**result, "history_id": history_id, "user": current_user["username"]}
@@ -109,13 +126,36 @@ def scrape(
 
 @app.get("/scrape/history")
 def scrape_history(
-    limit: int = Query(10, ge=1, le=100, description="Number of recent records"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(10, ge=1, le=100, description="Records per page"),
     q: str = Query("", description="Search by URL or title"),
+    status: str = Query("all", description="Status filter: all/success/error"),
     current_user: sqlite3.Row = Depends(get_current_user),
 ) -> dict:
     query = q.strip() or None
-    records = get_scrape_history_for_user(current_user["id"], limit, query)
-    return {"count": len(records), "items": records, "user": current_user["username"]}
+    status_group = (status or "all").strip().lower()
+    if status_group not in {"all", "success", "error"}:
+        raise HTTPException(status_code=400, detail="Invalid status filter")
+
+    offset = (page - 1) * limit
+    total = get_scrape_history_count_for_user(current_user["id"], query, status_group)
+    total_pages = max(1, (total + limit - 1) // limit)
+    records = get_scrape_history_for_user(
+        current_user["id"],
+        limit=limit,
+        offset=offset,
+        query=query,
+        status_group=status_group,
+    )
+    return {
+        "count": len(records),
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages,
+        "items": records,
+        "user": current_user["username"],
+    }
 
 
 @app.get("/scrape/history/{history_id}")
