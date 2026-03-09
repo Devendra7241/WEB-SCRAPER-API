@@ -23,7 +23,7 @@ body {
 }
 
 .container {
-  width: min(1100px, 92vw);
+  width: min(1320px, 96vw);
   margin: 36px auto;
   position: relative;
   z-index: 1;
@@ -332,6 +332,7 @@ button.ghost {
 
 table {
   width: 100%;
+  min-width: 1180px;
   border-collapse: collapse;
 }
 
